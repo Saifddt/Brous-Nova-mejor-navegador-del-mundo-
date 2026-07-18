@@ -3,14 +3,18 @@ package com.pl.novabrowser
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Patterns
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.webkit.*
-import android.widget.PopupMenu
+import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 
@@ -32,6 +36,22 @@ class MainActivity : AppCompatActivity() {
     private val tabs = mutableListOf<BrowserTab>()
     private var currentTabIndex = -1
     private var tabPanelOpen = false
+    private lateinit var browserMenu: BrowserMenu
+
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    it, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) { /* algunos proveedores no lo permiten, igual usamos la uri */ }
+            Prefs.customBackgroundUri = it.toString()
+            applyCustomBackground()
+            Toast.makeText(this, "Fondo aplicado", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,8 +60,11 @@ class MainActivity : AppCompatActivity() {
 
         bindViews()
         ThemeManager.applyToToolbar(this, toolbar)
+        browserMenu = BrowserMenu(this)
         setupToolbarActions()
         setupTabRecycler()
+        applyUiScale()
+        applyCustomBackground()
 
         openNewTab("https://www.google.com")
     }
@@ -118,6 +141,12 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
             cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = false
+            textZoom = Prefs.textZoom
+        }
+
+        if (Build.VERSION.SDK_INT >= 29 && Prefs.darkModeWeb) {
+            @Suppress("DEPRECATION")
+            webView.settings.forceDark = WebSettings.FORCE_DARK_ON
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -271,41 +300,202 @@ class MainActivity : AppCompatActivity() {
     // ---------- Menú principal ----------
 
     private fun showMainMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor)
-        popup.menuInflater.inflate(R.menu.menu_main, popup.menu)
-        popup.menu.findItem(R.id.action_desktop)?.isChecked =
-            tabs.getOrNull(currentTabIndex)?.isDesktopMode == true
+        val currentTab = tabs.getOrNull(currentTabIndex)
 
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.action_translate -> {
-                    translateCurrentPage()
-                    true
+        val rows = listOf(
+            BrowserMenu.Row("Nueva pestaña", R.drawable.ic_add) {
+                openNewTab("https://www.google.com")
+            },
+            BrowserMenu.Row("Historial", R.drawable.ic_history) {
+                Toast.makeText(this, "Historial: próximamente", Toast.LENGTH_SHORT).show()
+            },
+            BrowserMenu.Row("Descargas", R.drawable.ic_download) {
+                try {
+                    startActivity(Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS))
+                } catch (e: Exception) {
+                    Toast.makeText(this, "No se encontró la app de Descargas", Toast.LENGTH_SHORT).show()
                 }
-                R.id.action_desktop -> {
-                    toggleDesktopMode()
-                    true
-                }
-                R.id.action_bookmarks -> {
-                    Toast.makeText(this, "Favoritos: próximamente", Toast.LENGTH_SHORT).show()
-                    true
-                }
-                R.id.action_history -> {
-                    Toast.makeText(this, "Historial: próximamente", Toast.LENGTH_SHORT).show()
-                    true
-                }
-                R.id.action_share -> {
-                    shareCurrentUrl()
-                    true
-                }
-                R.id.action_settings -> {
-                    startActivity(Intent(this, SettingsActivity::class.java))
-                    true
-                }
-                else -> false
+            },
+            BrowserMenu.Row("Favoritos", R.drawable.ic_bookmark) {
+                Toast.makeText(this, "Favoritos: próximamente", Toast.LENGTH_SHORT).show()
+            },
+            null,
+            BrowserMenu.Row("Compartir enlace", R.drawable.ic_share) { shareCurrentUrl() },
+            BrowserMenu.Row("Buscar en la página", R.drawable.ic_find) { showFindInPageDialog() },
+            BrowserMenu.Row("Traducir página", R.drawable.ic_translate) { translateCurrentPage() },
+            null,
+            BrowserMenu.Row(
+                "Sitio de escritorio", R.drawable.ic_desktop,
+                isSwitch = true, switchChecked = currentTab?.isDesktopMode == true,
+                onSwitchChanged = { toggleDesktopMode() }
+            ),
+            BrowserMenu.Row(
+                "Bloquear anuncios", R.drawable.ic_shield,
+                isSwitch = true, switchChecked = Prefs.adBlockEnabled,
+                onSwitchChanged = { checked -> Prefs.adBlockEnabled = checked }
+            ),
+            BrowserMenu.Row(
+                "Modo oscuro en páginas", R.drawable.ic_dark_mode,
+                isSwitch = true, switchChecked = Prefs.darkModeWeb,
+                onSwitchChanged = { checked -> toggleDarkModeWeb(checked) }
+            ),
+            null,
+            BrowserMenu.Row("Tamaño de texto y barras", R.drawable.ic_text_size) {
+                showSizeSettingsDialog()
+            },
+            BrowserMenu.Row("Imagen de fondo", R.drawable.ic_image) {
+                pickImageLauncher.launch("image/*")
+            },
+            BrowserMenu.Row("Ajustes", R.drawable.ic_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            },
+            null,
+            BrowserMenu.Row("Salir", R.drawable.ic_exit) { finish() }
+        )
+
+        browserMenu.show(anchor, rows)
+    }
+
+    // ---------- Buscar en la página ----------
+
+    private fun showFindInPageDialog() {
+        val wv = currentWebView() ?: return
+        val input = EditText(this)
+        input.hint = "Buscar texto en la página"
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Buscar en la página")
+            .setView(input)
+            .setPositiveButton("Siguiente") { _, _ -> wv.findNext(true) }
+            .setNegativeButton("Cerrar") { d, _ ->
+                wv.clearMatches()
+                d.dismiss()
             }
+            .create()
+
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val q = s?.toString().orEmpty()
+                if (q.isNotEmpty()) wv.findAllAsync(q) else wv.clearMatches()
+            }
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+        })
+
+        dialog.show()
+    }
+
+    // ---------- Tamaño de texto / barras ----------
+
+    private fun showSizeSettingsDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_size_settings, null)
+        val seekZoom = view.findViewById<android.widget.SeekBar>(R.id.seekTextZoom)
+        val labelZoom = view.findViewById<android.widget.TextView>(R.id.labelTextZoom)
+        val seekBar = view.findViewById<android.widget.SeekBar>(R.id.seekBarSize)
+        val labelBar = view.findViewById<android.widget.TextView>(R.id.labelBarSize)
+        val btnApply = view.findViewById<android.widget.Button>(R.id.btnApplySizes)
+
+        seekZoom.progress = (Prefs.textZoom - 50).coerceIn(0, 130)
+        labelZoom.text = "${Prefs.textZoom}%"
+        seekZoom.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                labelZoom.text = "${50 + progress}%"
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar?) {}
+        })
+
+        val barNames = listOf("Pequeño", "Mediano", "Grande")
+        seekBar.progress = Prefs.toolbarSize
+        labelBar.text = barNames[Prefs.toolbarSize]
+        seekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                labelBar.text = barNames[progress]
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar?) {}
+        })
+
+        val dialog = AlertDialog.Builder(this).setView(view).create()
+        btnApply.setOnClickListener {
+            Prefs.textZoom = 50 + seekZoom.progress
+            Prefs.toolbarSize = seekBar.progress
+            applyTextZoomToAllTabs()
+            applyUiScale()
+            dialog.dismiss()
         }
-        popup.show()
+        dialog.show()
+    }
+
+    private fun applyTextZoomToAllTabs() {
+        tabs.forEach { it.webView.settings.textZoom = Prefs.textZoom }
+    }
+
+    private fun applyUiScale() {
+        val heightDp = when (Prefs.toolbarSize) {
+            0 -> 46
+            2 -> 66
+            else -> 56
+        }
+        val iconDp = when (Prefs.toolbarSize) {
+            0 -> 34
+            2 -> 46
+            else -> 40
+        }
+        val textSp = when (Prefs.toolbarSize) {
+            0 -> 13f
+            2 -> 17f
+            else -> 15f
+        }
+        val density = resources.displayMetrics.density
+        toolbar.layoutParams = toolbar.layoutParams.apply { height = (heightDp * density).toInt() }
+
+        listOf(btnBack, btnForward, btnRefresh, btnTabs, btnMenu).forEach { btn ->
+            val lp = btn.layoutParams
+            lp.width = (iconDp * density).toInt()
+            lp.height = (iconDp * density).toInt()
+            btn.layoutParams = lp
+        }
+        searchBar.textSize = textSp
+
+        val margin = (heightDp * density).toInt() + (3 * density).toInt()
+        (webViewContainer.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = margin
+        (tabRecycler.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = margin
+        webViewContainer.requestLayout()
+        tabRecycler.requestLayout()
+    }
+
+    // ---------- Modo oscuro en páginas ----------
+
+    private fun toggleDarkModeWeb(enabled: Boolean) {
+        Prefs.darkModeWeb = enabled
+        if (Build.VERSION.SDK_INT >= 29) {
+            tabs.forEach { tab ->
+                @Suppress("DEPRECATION")
+                tab.webView.settings.forceDark =
+                    if (enabled) WebSettings.FORCE_DARK_ON else WebSettings.FORCE_DARK_OFF
+                tab.webView.reload()
+            }
+        } else {
+            Toast.makeText(this, "Modo oscuro necesita Android 10 o superior", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ---------- Fondo personalizado ----------
+
+    private fun applyCustomBackground() {
+        val uriStr = Prefs.customBackgroundUri ?: return
+        try {
+            val uri = Uri.parse(uriStr)
+            contentResolver.openInputStream(uri)?.use { stream ->
+                val bitmap = android.graphics.BitmapFactory.decodeStream(stream)
+                val drawable = android.graphics.drawable.BitmapDrawable(resources, bitmap)
+                drawable.alpha = 235
+                tabRecycler.background = drawable
+            }
+        } catch (e: Exception) {
+            Prefs.customBackgroundUri = null
+        }
     }
 
     private fun translateCurrentPage() {
@@ -349,6 +539,8 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (::toolbar.isInitialized) {
             ThemeManager.applyToToolbar(this, toolbar)
+            applyUiScale()
+            applyCustomBackground()
         }
     }
 

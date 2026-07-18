@@ -36,4 +36,22 @@ object Prefs {
     var animationsEnabled: Boolean
         get() = sp.getBoolean("animations_enabled", true)
         set(value) = sp.edit().putBoolean("animations_enabled", value).apply()
+
+    /** Zoom de texto dentro de las páginas web, 50% a 180%. */
+    var textZoom: Int
+        get() = sp.getInt("text_zoom", 100)
+        set(value) = sp.edit().putInt("text_zoom", value).apply()
+
+    /** Tamaño de la barra de herramientas: 0=pequeño, 1=mediano, 2=grande. */
+    var toolbarSize: Int
+        get() = sp.getInt("toolbar_size", 1)
+        set(value) = sp.edit().putInt("toolbar_size", value).apply()
+
+    var darkModeWeb: Boolean
+        get() = sp.getBoolean("dark_mode_web", false)
+        set(value) = sp.edit().putBoolean("dark_mode_web", value).apply()
+
+    var customBackgroundUri: String?
+        get() = sp.getString("custom_bg_uri", null)
+        set(value) = sp.edit().putString("custom_bg_uri", value).apply()
 }

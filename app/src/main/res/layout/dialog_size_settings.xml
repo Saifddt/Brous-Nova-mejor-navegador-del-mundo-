@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/theme_surface"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tamaño de texto en páginas"
+        android:textColor="@color/theme_on_surface"
+        android:textStyle="bold"
+        android:textSize="15sp"/>
+
+    <TextView
+        android:id="@+id/labelTextZoom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="100%"
+        android:textColor="#8FB3B0"
+        android:layout_marginBottom="4dp"/>
+
+    <SeekBar
+        android:id="@+id/seekTextZoom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="130"
+        android:progress="50"
+        android:progressTint="@color/theme_accent"
+        android:thumbTint="@color/theme_accent"/>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="#22FFFFFF" android:layout_marginVertical="18dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tamaño de la barra y botones"
+        android:textColor="@color/theme_on_surface"
+        android:textStyle="bold"
+        android:textSize="15sp"/>
+
+    <TextView
+        android:id="@+id/labelBarSize"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mediano"
+        android:textColor="#8FB3B0"
+        android:layout_marginBottom="4dp"/>
+
+    <SeekBar
+        android:id="@+id/seekBarSize"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="2"
+        android:progress="1"
+        android:progressTint="@color/theme_accent"
+        android:thumbTint="@color/theme_accent"/>
+
+    <Button
+        android:id="@+id/btnApplySizes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="Aplicar"
+        android:backgroundTint="@color/theme_accent"
+        android:textColor="@color/black"/>
+
+</LinearLayout>
