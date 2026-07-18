@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Nova Browser</string>
+    <string name="new_tab">Nueva pestaña</string>
+    <string name="search_hint">Buscar o escribir URL</string>
+    <string name="menu_settings">Ajustes</string>
+    <string name="menu_bookmarks">Favoritos</string>
+    <string name="menu_history">Historial</string>
+    <string name="menu_translate">Traducir página</string>
+    <string name="menu_desktop_mode">Modo escritorio</string>
+    <string name="menu_share">Compartir</string>
+</resources>

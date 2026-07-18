@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_translate" android:title="@string/menu_translate"/>
+    <item android:id="@+id/action_desktop" android:title="@string/menu_desktop_mode" android:checkable="true"/>
+    <item android:id="@+id/action_bookmarks" android:title="@string/menu_bookmarks"/>
+    <item android:id="@+id/action_history" android:title="@string/menu_history"/>
+    <item android:id="@+id/action_share" android:title="@string/menu_share"/>
+    <item android:id="@+id/action_settings" android:title="@string/menu_settings"/>
+</menu>
